@@ -3,23 +3,39 @@ const websocket = require('ws');
 
 const fs = require('fs');
 
+const htmlFileName = "index.html";
+const jsFileName = "script.js";
+const cssFileName = "style.css";
+
+const clientFolder = "./Client/"
+
+
 //HTTP
 const httpPORT=3000
 const httpServer = http.createServer((req, res) => {
-    
+
     switch(req.url){
         case '/':
-            const htmlFile = fs.readFileSync('./public.html', 'utf8');
+            const htmlFile = fs.readFileSync(clientFolder + htmlFileName, 'utf8');
             res.writeHead(200, { 'Content-Type': 'text/html' });
             res.write(htmlFile);
             res.end();
             break;
-        case '/client.js':
-            const jsFile = fs.readFileSync('./client.js', 'utf8');
+
+        case '/' + jsFileName:
+            const jsFile = fs.readFileSync(clientFolder + jsFileName, 'utf8');
             res.writeHead(200, { 'Content-Type': 'text/javascript' });
             res.write(jsFile);
             res.end();
             break;
+
+        case '/' + cssFileName:
+            const cssFile = fs.readFileSync(clientFolder + cssFileName, 'utf8');
+            res.writeHead(200, { 'Content-Type': 'text/css' });
+            res.write(cssFile);
+            res.end();
+            break;
+
         default:
             res.writeHead(404, { 'Content-Type': 'text/plain' });
             res.end('404 Not Found');
