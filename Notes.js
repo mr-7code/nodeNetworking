@@ -32,6 +32,14 @@ function drawPolygon(ctx, points) {
     ctx.stroke();
 }
 
+//Auto reconnection
+setInterval(attemptReconnect,10000) // 10 sec
+function attemptReconnect(){
+    if(!connectedToServer){
+        connectToServer()
+    }
+}
+
 //Server
 
 //HTTP Firewall
