@@ -63,28 +63,54 @@ httpServer.listen(httpPORT, () => {
 console.log('HTTP Manager is listening on Port:',httpPORT);});
 
 
-//HTTP Firewall
-/* if(blacklistIP.includes(req.socket.remoteAddress)){
-    res.writeHead(401, { 'Content-Type': 'text/plain' });
-    res.end('Your are Blocked from this Website');
 
-    console.log('Denied access to:',req.socket.remoteAddress)
-    return 
-} */
+class Player{
+    constructor(color){
+        this.color = color;
+        this.pos = {x:0,y:0};
+        this.direction = {x:0,y:0};
+    }
+    move(deltaTime) {
+        this.pos.x += this.direction.x * deltaTime / 20;
+        this.pos.y += this.direction.y * deltaTime / 20;
+    }
+}
 
-/* if(trollIP.includes(req.socket.remoteAddress)){
-    res.writeHead(302, {
-    'Location': 'https://www.youtube.com/watch?v=xvFZjo5PgG0'
+const wsServer = new websocket.Server({port: 3001});
+
+wsServer.on("connection", handleConnection)
+
+const colorArr = ["blue","red","green","purple","orange"];
+
+function handleConnection(client){
+    console.log("New Connection");
+    let t1 = Date.now();
+    let t2 = t1;
+
+    //Prepare initial send
+    let player = new Player(colorArr[Math.floor(Math.random() * colorArr.length)])
+
+    //Initial send
+    client.send(JSON.stringify({type: "initial", content: player}))
+
+    client.on("message", (message)=>{
+        const parsedMessage = JSON.parse(message.data)
+        switch(parsedMessage.type){
+            case "update"://Handle movement updates
+                t2 = Date.now();
+                const deltaTime = t2 - t1;
+                player.move(deltaTime);
+                player.direction = parsedMessage.content;
+                console.log(player.direction)
+                t1 = t2;//Send to all exept the one we recieved from the data and only of this player so we need an identifier
+                break;
+        }
     });
-    res.end()
 
-    console.log('Trolled:',req.socket.remoteAddress)
-    return 
-} */
+    client.on("close", () => {
+        console.log("Connection closed");
+    });
+}
 
-/* if(clientConnections >= maxConnections){// Max Connections Reached
-    res.writeHead(401, { 'Content-Type': 'text/plain' });//Maybe send a different Html File
-    res.end('401 Maximum Amount of Clients reached');
-    console.log('Denied access to a Client due to Limit being reached')
-    return null
-} */
+// Approach A: Have a worker Thread start a gameloop
+// Approach B: Only use timestamp calculations to find out the movement (Timestamp Serverside for control / Clientside for higher accuracy)
