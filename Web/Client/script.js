@@ -6,29 +6,30 @@ canvas.height = window.innerHeight;
 
 //Player Class
 class Player{
-    constructor(){
-        this.color = "";
-        this.pos = {x:0,y:0};
-        this.direction = {x:0,y:0};
+    constructor(color,position,direction){
+        this.color = color;
+        this.position = position;
+        this.direction = direction;
     }
     move(deltaTime) {
-        this.pos.x += this.direction.x * deltaTime / 20;
-        this.pos.y += this.direction.y * deltaTime / 20;
+        this.position.x += this.direction.x * deltaTime / 20;
+        this.position.y += this.direction.y * deltaTime / 20;
     }
     show(){
         ctx.fillStyle = this.color;
-        ctx.fillRect(this.pos.x, this.pos.y, 50, 50);
+        ctx.fillRect(this.position.x, this.position.y, 50, 50);
     }
 }
-
+const localAddress = "192.168.1.51"
 
 //Connection to server
 let connectedToServer = false;
 let initialized = false;
-let localPlayer = new Player();
+let localID = null;
+let playersDict = {};
 
 function connectToServer(){
-    const ws = new WebSocket('ws://localhost:3001');    
+    const ws = new WebSocket('ws://'+localAddress+':3001');    
     ws.onopen = function(){
         console.log('connected to server');
         connectedToServer = true;
@@ -40,11 +41,20 @@ function connectToServer(){
     ws.onmessage = function(message){
         const parsedMessage = JSON.parse(message.data)
         switch(parsedMessage.type){
-            case "initial":
+            case "identification": //Server sends only to you for your ID
+                console.log("identified")
+                localID = parsedMessage.content.id;
+                playersDict[localID] = new Player(parsedMessage.content.color, parsedMessage.content.position, parsedMessage.content.direction);
                 initialized = true;
-                localPlayer.color = parsedMessage.content.color;
-                localPlayer.pos = parsedMessage.content.pos;
-                localPlayer.direction = parsedMessage.content.direction;
+                break;
+
+            case "initial": //When another new Player Joins
+                if(parsedMessage.content.id != localID) playersDict[parsedMessage.content.id] = new Player(parsedMessage.content.color, parsedMessage.content.position, parsedMessage.content.direction);
+                break;
+
+            case "update": //When server needs to update the direction / position of a Player
+                playersDict[parsedMessage.content.id].position = parsedMessage.content.position;
+                playersDict[parsedMessage.content.id].direction = parsedMessage.content.direction;
                 break;
         }
     }
@@ -113,6 +123,14 @@ function update(){
     t2 = Date.now();
     deltaTime = t2 - t1;
 
+    if(keyCount != previousKeyCount){// Works but not error safe (Timewindow) -> Have a control check if the direction being sent to the server is the same as the current client one
+        playersDict[localID].direction.y = (-wIsDown + sIsDown) * (aIsDown || dIsDown ? 0.707 : 1);
+        playersDict[localID].direction.x = (-aIsDown + dIsDown) * (wIsDown || sIsDown ? 0.707 : 1);
+
+        webSocket.send(JSON.stringify({type:"update", content: {direction:playersDict[localID].direction}}))//Transfer just useful info
+        previousKeyCount = keyCount;
+    }
+
     if(deltaTime >= fpsInterval){
         draw()//Pass DeltaTime as a parameter to avoid gloabals
         t1 = t2;
@@ -124,18 +142,11 @@ function update(){
 function draw(){    
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    if(keyCount != previousKeyCount){
-        console.log("Changed Dir")
-        previousKeyCount = keyCount;
-    }
-
     if(initialized){
-        localPlayer.show()
-
-        localPlayer.direction.y = (-wIsDown + sIsDown) * (aIsDown || dIsDown ? 0.707 : 1);
-        localPlayer.direction.x = (-aIsDown + dIsDown) * (wIsDown || sIsDown ? 0.707 : 1);
-
-        localPlayer.move(deltaTime)
+        for(let player of Object.values(playersDict)){
+            player.move(deltaTime)
+            player.show()
+        }
     }
 
     if(connectedToServer){

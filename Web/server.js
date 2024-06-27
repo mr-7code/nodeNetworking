@@ -65,14 +65,15 @@ console.log('HTTP Manager is listening on Port:',httpPORT);});
 
 
 class Player{
-    constructor(color){
+    constructor(id,color){
+        this.id = id
         this.color = color;
-        this.pos = {x:0,y:0};
+        this.position = {x:0,y:0};
         this.direction = {x:0,y:0};
     }
     move(deltaTime) {
-        this.pos.x += this.direction.x * deltaTime / 20;
-        this.pos.y += this.direction.y * deltaTime / 20;
+        this.position.x += this.direction.x * deltaTime / 20;
+        this.position.y += this.direction.y * deltaTime / 20;
     }
 }
 
@@ -82,27 +83,47 @@ wsServer.on("connection", handleConnection)
 
 const colorArr = ["blue","red","green","purple","orange"];
 
+const playersDict = {};
+
+let connectionsSinceBeginning = 0;
+
 function handleConnection(client){
     console.log("New Connection");
     let t1 = Date.now();
     let t2 = t1;
 
     //Prepare initial send
-    let player = new Player(colorArr[Math.floor(Math.random() * colorArr.length)])
-
+    let player = new Player(connectionsSinceBeginning, colorArr[Math.floor(Math.random() * colorArr.length)]);
+    playersDict[connectionsSinceBeginning] = player;
+    connectionsSinceBeginning++;
+    
     //Initial send
-    client.send(JSON.stringify({type: "initial", content: player}))
+    client.send(JSON.stringify({type: "identification", content: {position:player.position, direction:player.direction, color: player.color, id: player.id}}));
+
+    for(let user of Object.values(playersDict)){//Send new user all other users
+        client.send(JSON.stringify({type: "initial", content: {position:user.position, direction:user.direction, color: user.color, id: user.id}}));
+    };
+
+    wsServer.clients.forEach((user)=>{
+        user.send(JSON.stringify({type: "initial", content: {position:player.position, direction:player.direction, color: player.color, id: player.id}}));
+    });
 
     client.on("message", (message)=>{
-        const parsedMessage = JSON.parse(message.data)
+        const messageString = message.toString()
+        const parsedMessage = JSON.parse(messageString)
         switch(parsedMessage.type){
             case "update"://Handle movement updates
                 t2 = Date.now();
                 const deltaTime = t2 - t1;
+
                 player.move(deltaTime);
-                player.direction = parsedMessage.content;
-                console.log(player.direction)
+                player.direction = parsedMessage.content.direction;
+
                 t1 = t2;//Send to all exept the one we recieved from the data and only of this player so we need an identifier
+
+                wsServer.clients.forEach((client)=>{
+                    client.send(JSON.stringify({type: "update", content: {position:player.position, direction:player.direction, id: player.id}}))
+                });
                 break;
         }
     });
